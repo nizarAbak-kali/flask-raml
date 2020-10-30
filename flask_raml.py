@@ -13,16 +13,17 @@ from flask.app import HTTPException
 from werkzeug.http import HTTP_STATUS_CODES
 from werkzeug.datastructures import MultiDict
 
-import flask.ext.mime_encoders
-import flask.ext.mime_encoders.json
+
+import flask_mime_encoders
+import flask_mime_encoders.json
 
 import raml
 from raml import Content, ApiError, RequestError, ParameterError, AuthError
    # Export raml module properties.
 
 
-class MimeEncoders(flask.ext.mime_encoders.MimeEncoders):
-    default = flask.ext.mime_encoders.MimeEncoders.json
+class MimeEncoders(flask_mime_encoders.MimeEncoders):
+    default = flask_mime_encoders.json
 
 
 class Converter(raml.Converter):
