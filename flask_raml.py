@@ -4,22 +4,20 @@ __all__ = 'MimeEncoders API Loader Converter Content ApiError RequestError Param
 
 __version__ = '0.2.2'
 
-from sys import exc_info
-from operator import itemgetter
 from functools import wraps
-
-from flask import abort, request, has_request_context, Response
-from flask.app import HTTPException
-from werkzeug.http import HTTP_STATUS_CODES
-from werkzeug.datastructures import MultiDict
-
+from operator import itemgetter
+from sys import exc_info
 
 import flask_mime_encoders
 import flask_mime_encoders.json
-
 import raml
-from raml import Content, ApiError, RequestError, ParameterError, AuthError
-   # Export raml module properties.
+from flask import Response, abort, has_request_context, request
+from flask.app import HTTPException
+from raml import ApiError, AuthError, Content, ParameterError, RequestError
+from werkzeug.datastructures import MultiDict
+from werkzeug.http import HTTP_STATUS_CODES
+
+# Export raml module properties.
 
 
 class MimeEncoders(flask_mime_encoders.MimeEncoders):
@@ -32,7 +30,7 @@ class Converter(raml.Converter):
     def convert_params(self, specification, params):
         if isinstance(params, MultiDict):
             params, multidict = {}, params
-            for key, values in multidict.iteritems():
+            for key, values in multidict.items():
                 params[key] = values[0] if len(values) == 1 else values
 
         return super(Converter, self).convert_params(specification, params)
@@ -56,7 +54,7 @@ class Loader(raml.Loader):
         uri = resource['relativeUri']
         if 'uriParameters' in resource:
             spec_format, flask_format = self.spec_param_template.format, self.flask_param_template.format
-            for name, param in resource['uriParameters'].items():
+            for name, param in list(resource['uriParameters'].items()):
                 param['name'] = name
                 param['flask_type'] = self.flask_types[param['type']]
                 uri = uri.replace(spec_format(**param), flask_format(**param))
@@ -67,7 +65,8 @@ class Loader(raml.Loader):
 class API(raml.API):
     """Flask API.
     """
-    plugins = dict(raml.API.plugins, loader=Loader, encoders=MimeEncoders, converter=Converter)
+    plugins = dict(raml.API.plugins, loader=Loader,
+                   encoders=MimeEncoders, converter=Converter)
 
     auth = None
     logger_name = '{app}:api'
@@ -80,14 +79,16 @@ class API(raml.API):
     default_error_status = 500
     default_error_message = 'internal server error'
 
-    config_exclude = raml.API.config_exclude.union('unhandled_uris unhandled_methods'.split())
+    config_exclude = raml.API.config_exclude.union(
+        'unhandled_uris unhandled_methods'.split())
 
     def __init__(self, app, path, uri=None, id=None, log=None, **options):
         self.app = app
         self.views = {}
 
-        if log is None or isinstance(log, basestring):
-            log = app.logger.manager.getLogger(log or options.get('logger_name', self.logger_name).format(app=app.name))
+        if log is None or isinstance(log, str):
+            log = app.logger.manager.getLogger(log or options.get(
+                'logger_name', self.logger_name).format(app=app.name))
 
         super(API, self).__init__(path, uri, id, log, **options)
 
@@ -106,18 +107,19 @@ class API(raml.API):
     @property
     def unhandled_methods(self):
         result = []
-        for uri, resource in self.api.iteritems():
+        for uri, resource in self.api.items():
             methods = self.views.get(uri, ())
-            result.extend((uri, method) for method in resource['methodsByName'] if method.upper() not in methods)
+            result.extend(
+                (uri, method) for method in resource['methodsByName'] if method.upper() not in methods)
         return result
 
     def abort(self, status, error=None, encoder=True):
         (self.log.exception if self.app.debug and exc_info()[0] else self.log.error)(
-             '%r %s %s >> %s', status, request.method, request.path,
-             error or HTTP_STATUS_CODES.get(status, 'Unknown Error'))
+            '%r %s %s >> %s', status, request.method, request.path,
+            error or HTTP_STATUS_CODES.get(status, 'Unknown Error'))
 
         if error:
-            return abort(status, description=error, response = self.encoders[encoder].make_response(
+            return abort(status, description=error, response=self.encoders[encoder].make_response(
                 dict(status=status, error=error), status=status))
         else:
             return abort(status)
@@ -132,7 +134,8 @@ class API(raml.API):
         methods = self.get_resource_methods(resource, methods)
 
         if endpoint is None:
-            endpoint = self.get_endpoint(resource, methods, self.endpoint_template)
+            endpoint = self.get_endpoint(
+                resource, methods, self.endpoint_template)
 
         auth = config['auth']
         decorate = config.get('decorate', None)
@@ -142,7 +145,8 @@ class API(raml.API):
         convert_query_params = config['convert_query_params']
 
         def decorator(view):
-            self.log.debug('map %s %s %s', self.id, '/'.join(sorted(methods)), uri)
+            self.log.debug('map %s %s %s', self.id,
+                           '/'.join(sorted(methods)), uri)
 
             @wraps(view)
             def decorated_view(**uri_params):
@@ -150,8 +154,8 @@ class API(raml.API):
                     url = request.path
 
                     self.log.info('%s %s << %s [%s|%s|%s]', request.method, url,
-                        uri_params if self.app.debug or not uri_params else '{...}',
-                        len(uri_params) or '-', len(request.args) or '-', len(request.data) or '-')
+                                  uri_params if self.app.debug or not uri_params else '{...}',
+                                  len(uri_params) or '-', len(request.args) or '-', len(request.data) or '-')
 
                     if auth:
                         auth.authorize(uri_params, request)
@@ -159,31 +163,34 @@ class API(raml.API):
                     method = self.get_method_spec(resource, request.method)
 
                     if convert_uri_params:
-                        uri_params = self.converter.convert_params(resource['allUriParameters'], uri_params)
+                        uri_params = self.converter.convert_params(
+                            resource['allUriParameters'], uri_params)
 
                     if convert_query_params:
                         if 'queryParameters' in method:
-                            uri_params.update(self.converter.convert_params(method['queryParameters'], request.args))
+                            uri_params.update(self.converter.convert_params(
+                                method['queryParameters'], request.args))
                         elif request.args:
-                            self.abort(400, 'resource does not accept query parameters')
+                            self.abort(
+                                400, 'resource does not accept query parameters')
 
                     if uri_params:
                         self.log.debug('%s %s << args: %s [%s]', request.method, url, uri_params,
-                            len(uri_params) or '-')
+                                       len(uri_params) or '-')
 
                     if decode_request:
                         self.log.debug('%s %s << data: %s [%s]', request.method, url, decode_request.name,
-                            len(request.data))
+                                       len(request.data))
 
                         uri_params.update(decode_request.get_request_data())
 
                     response = view(**uri_params)
 
-                    if encode_response and not isinstance(response, (Response, basestring)):
+                    if encode_response and not isinstance(response, (Response, str)):
                         response = encode_response.make_response(response)
 
                         self.log.debug('%s %s >> %s [%s:%s] (%s)', request.method, url, encode_response.name,
-                            type(response.response), len(response.response), response.status)
+                                       type(response.response), len(response.response), response.status)
 
                     return response
 
@@ -197,13 +204,15 @@ class API(raml.API):
                 except ApiError as error:
                     self.abort(error.status, error.message)
                 except Exception as error:
-                    msg =  str(error) if self.app.debug else self.default_error_message
+                    msg = str(
+                        error) if self.app.debug else self.default_error_message
                     self.abort(self.default_error_status, msg)
 
             if decorate:
                 decorated_view = decorate(decorated_view)
 
-            self.app.add_url_rule(uri, endpoint, decorated_view, methods=methods)
+            self.app.add_url_rule(
+                uri, endpoint, decorated_view, methods=methods)
 
             for method in methods:
                 self.views.setdefault(uri, {})[method] = decorated_view
@@ -223,12 +232,12 @@ class API(raml.API):
             api=self.id,
             resource=resource['uniqueId'],
             methods='+'.join(methods) if methods else 'any',
-            )
+        )
 
     def get_response_mimetype(self, response, accept=None, request=request):
         if accept is None:
             if request and has_request_context():
-                accept = map(itemgetter(0), request.accept_mimetypes)
+                accept = list(map(itemgetter(0), request.accept_mimetypes))
         return super(API, self).get_response_mimetype(response, accept)
 
     def get_default_status(self, status=None, request=request):
@@ -246,7 +255,8 @@ class API(raml.API):
 
         for method in self.get_resource_methods(resource, methods):
             method_spec = self.get_method_spec(resource, method)
-            self.route(resource, method, **options)(self.create_example_view(method_spec))
+            self.route(resource, method, **
+                       options)(self.create_example_view(method_spec))
 
     def create_example_view(self, method_spec):
         def view(**params):
@@ -259,6 +269,6 @@ class API(raml.API):
         headers = self.get_example_headers(response)
 
         self.log.info('%s %s: %s %s (%d bytes, %d headers)', method_spec['method'].upper(), method_spec['uri'],
-            response['status'], body.mimetype, len(body), len(headers))
+                      response['status'], body.mimetype, len(body), len(headers))
 
         return Response(body.content, status=response['status'], headers=headers, mimetype=body.mimetype)
